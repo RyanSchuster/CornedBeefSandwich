@@ -25,6 +25,9 @@ link_color = 'blue'
 list_font = content_font
 list_color = content_color
 
+quote_font = content_font
+quote_color = content_color
+
 h3_font = 'helvetica 14'
 h3_color = 'green'
 h2_font = 'helvetica 18'
@@ -93,6 +96,7 @@ def update_content(window, content: str):
     window['-CONTENT-'].update('')
     links = []
     overview = []
+    pos = 0
     for line in content.splitlines(keepends=True):
         if line.startswith('```'):
             is_format = not is_format
@@ -108,20 +112,23 @@ def update_content(window, content: str):
             links.append((text or link, link))
         elif line.startswith('# '):
             window['-CONTENT-'].update(line[2:], text_color_for_value=h1_color, font_for_value=h1_font, append=True)
-            overview.append(line)
+            overview.append((pos, line))
         elif line.startswith('## '):
             window['-CONTENT-'].update(line[3:], text_color_for_value=h2_color, font_for_value=h2_font, append=True)
-            overview.append(line)
+            overview.append((pos, line))
         elif line.startswith('###'):
             window['-CONTENT-'].update(line[4:], text_color_for_value=h3_color, font_for_value=h3_font, append=True)
-            overview.append(line)
+            overview.append((pos, line))
         elif line.startswith('* '):
             window['-CONTENT-'].update(line, text_color_for_value=list_color, font_for_value=list_font, append=True)
+        elif line.startswith('> '):
+            window['-CONTENT-'].update(line, text_color_for_value=quote_color, font_for_value=quote_font, append=True)
         else:
             window['-CONTENT-'].update(line, text_color_for_value=content_color, font_for_value=content_font, append=True)
+        pos += 1 + int(len(line) / 120)  # Just sorta assume that lines wrap aroundabout 120 characters
     window['-LINKS-'].update(['{} - {}'.format(i, text) for i, (text, _) in enumerate(links)])
-    window['-OVERV-'].update(overview)
-    return [link for (text, link) in links], overview
+    window['-OVERV-'].update([line for (p, line) in overview])
+    return [link for (text, link) in links], [p / pos for (p, line) in overview]
 
 
 class History(object):
@@ -169,6 +176,10 @@ def main():
             elif event == '-LINKS-':
                 item = window['-LINKS-'].get_indexes()[0]
                 window['-URL-'].update(links[item])
+            elif event == '-OVERV-':
+                item = window['-OVERV-'].get_indexes()[0]
+                window['-CONTENT-'].set_vscroll_position(overv[item])
+                continue
 
             # Make a request and handle the response
             status, meta, body = gemini_request(window['-URL-'].get())
