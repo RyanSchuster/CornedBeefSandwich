@@ -178,7 +178,8 @@ def main():
                 event, values = sg.Window('Input Requested', layout).read(close=True)
                 query = '?' + urllib.parse.quote(values[0])
                 window['-URL-'].update(urllib.parse.urljoin(window['-URL-'].get(), query))
-            elif 20 <= status < 30:
+                status, meta, body = gemini_request(window['-URL-'].get())
+            if 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
                 pass  # Success
             elif 30 <= status < 40:
                 body = '# {} - Redirect\n## {}'.format(status, meta)
