@@ -104,24 +104,24 @@ def update_content(window, content: str):
         if not is_format:
             # FIXME: This will still word-wrap - probably nothing to be done about that
             window['-CONTENT-'].update(line, text_color_for_value=preform_color, font_for_value=preform_font, append=True)
-        elif line.startswith('=> '):
-            splitlink = line.split(maxsplit=2)
-            link = urllib.parse.urljoin(window['-URL-'].get(), (splitlink[1] if len(splitlink) >= 2 else '').strip())
-            text = (splitlink[2] if len(splitlink) >= 3 else '').strip()
+        elif line.startswith('=>'):
+            splitlink = line[2:].strip().split(maxsplit=1)
+            link = urllib.parse.urljoin(window['-URL-'].get(), (splitlink[0] if len(splitlink) >= 1 else '').strip())
+            text = (splitlink[1] if len(splitlink) >= 2 else '').strip()
             window['-CONTENT-'].update('[{}] => {} {}\n'.format(len(links), link, text), text_color_for_value=link_color, font_for_value=link_font, append=True)
             links.append((text or link, link))
-        elif line.startswith('# '):
-            window['-CONTENT-'].update(line[2:], text_color_for_value=h1_color, font_for_value=h1_font, append=True)
-            overview.append((pos, line))
-        elif line.startswith('## '):
-            window['-CONTENT-'].update(line[3:], text_color_for_value=h2_color, font_for_value=h2_font, append=True)
-            overview.append((pos, line))
         elif line.startswith('###'):
             window['-CONTENT-'].update(line[4:], text_color_for_value=h3_color, font_for_value=h3_font, append=True)
             overview.append((pos, line))
-        elif line.startswith('* '):
+        elif line.startswith('##'):
+            window['-CONTENT-'].update(line[3:], text_color_for_value=h2_color, font_for_value=h2_font, append=True)
+            overview.append((pos, line))
+        elif line.startswith('#'):
+            window['-CONTENT-'].update(line[2:], text_color_for_value=h1_color, font_for_value=h1_font, append=True)
+            overview.append((pos, line))
+        elif line.startswith('*'):
             window['-CONTENT-'].update(line, text_color_for_value=list_color, font_for_value=list_font, append=True)
-        elif line.startswith('> '):
+        elif line.startswith('>'):
             window['-CONTENT-'].update(line, text_color_for_value=quote_color, font_for_value=quote_font, append=True)
         else:
             window['-CONTENT-'].update(line, text_color_for_value=content_color, font_for_value=content_font, append=True)
@@ -196,7 +196,7 @@ def main():
                 body = '# {} - Redirect\n## {}'.format(status, meta)
             elif 40 <= status < 50:
                 body = '# {} - Temporary falure\n## {}'.format(status, meta)
-            elif 50 <= status <= 60:
+            elif 50 <= status < 60:
                 body = '# {} - Permanent falure\n## {}'.format(status, meta)
             elif 60 <= status < 70:
                 body = '# {} - Certificate required\n## {}'.format(status, meta)
