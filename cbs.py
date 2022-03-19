@@ -98,6 +98,8 @@ class Client(object):
         self.overview = []
 
     def update_content_gemtext(self, content: str):
+        """Update the displayed contents given a string of gemtext"""
+
         is_format = True
         self.window['-CONTENT-'].update('')
         new_links = []
@@ -142,6 +144,36 @@ class Client(object):
         self.links = [link for (text, link) in new_links]
         self.overview = [p / pos for (p, line) in new_overv]
 
+    def load_url(self, url):
+        """Do whatever is necessary to request and then display a given URL"""
+
+        # TODO: only update the window url for gemini:// urls, do something different for other schemes
+        self.window['-URL-'].update(url)
+        status, meta, body = gemini_request(url)
+
+        # TODO: examine meta field for other mime types
+        if 10 <= status < 20:
+            # Input request
+            layout = [[sg.Text(meta)], [sg.InputText()], [sg.Submit(), sg.Cancel()]]
+            event, values = sg.Window('Input Requested', layout).read(close=True)
+            query = '?' + urllib.parse.quote(values[0])
+            url = urllib.parse.urljoin(self.window['-URL-'].get(), query)
+            return self.load_url(url)
+        elif 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
+            pass  # Success
+        elif 30 <= status < 40:
+            body = '# {} - Redirect\n## {}'.format(status, meta)
+            # TODO: auto-redirect?
+        elif 40 <= status < 50:
+            body = '# {} - Temporary falure\n## {}'.format(status, meta)
+        elif 50 <= status < 60:
+            body = '# {} - Permanent falure\n## {}'.format(status, meta)
+        elif 60 <= status < 70:
+            body = '# {} - Certificate required\n## {}'.format(status, meta)
+        else:
+            body = '# {} - Unknown status code\n## {}'.format(status, meta)
+        return self.update_content_gemtext(body)
+
 
 class History(object):
     def __init__(self):
@@ -164,42 +196,12 @@ class History(object):
         self._hist.append(url)
 
 
-def load_url(client, url):
-    # TODO: only update the window url for gemini:// urls, do something different for other schemes
-    client.window['-URL-'].update(url)
-    status, meta, body = gemini_request(url)
-
-    # TODO: examine meta field for other mime types
-    if 10 <= status < 20:
-        # Input request
-        layout = [[sg.Text(meta)], [sg.InputText()], [sg.Submit(), sg.Cancel()]]
-        event, values = sg.Window('Input Requested', layout).read(close=True)
-        query = '?' + urllib.parse.quote(values[0])
-        url = urllib.parse.urljoin(client.window['-URL-'].get(), query)
-        return load_url(client.window, url)
-    elif 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
-        pass  # Success
-    elif 30 <= status < 40:
-        body = '# {} - Redirect\n## {}'.format(status, meta)
-        # TODO: auto-redirect?
-    elif 40 <= status < 50:
-        body = '# {} - Temporary falure\n## {}'.format(status, meta)
-    elif 50 <= status < 60:
-        body = '# {} - Permanent falure\n## {}'.format(status, meta)
-    elif 60 <= status < 70:
-        body = '# {} - Certificate required\n## {}'.format(status, meta)
-    else:
-        body = '# {} - Unknown status code\n## {}'.format(status, meta)
-    return client.update_content_gemtext(body)
-
-
 def main():
     client = Client()
-    #window = sg.Window('Gemini Client', browser_window_layout(), resizable=True)
     hist = History()
     hist.add(homepage)
     client.window.finalize()
-    load_url(client, homepage)
+    client.load_url(homepage)
     while True:
         event, values = client.window.read()
         if event == sg.WIN_CLOSED:
@@ -224,7 +226,7 @@ def main():
                 continue  # No page load, only scroll existing content
             else:
                 continue  # Unexpected event, ignore it
-            load_url(client, url)
+            client.load_url(url)
 
 
 if __name__ == '__main__':
