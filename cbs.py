@@ -152,12 +152,37 @@ class History(object):
         self._hist.append(url)
 
 
+def page_load(window):
+    # Make a request and handle the response
+    status, meta, body = gemini_request(window['-URL-'].get())
+    if 10 <= status < 20:
+        # Input request
+        layout = [[sg.Text(meta)], [sg.InputText()], [sg.Submit(), sg.Cancel()]]
+        event, values = sg.Window('Input Requested', layout).read(close=True)
+        query = '?' + urllib.parse.quote(values[0])
+        window['-URL-'].update(urllib.parse.urljoin(window['-URL-'].get(), query))
+        status, meta, body = gemini_request(window['-URL-'].get())
+    if 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
+        pass  # Success
+    elif 30 <= status < 40:
+        body = '# {} - Redirect\n## {}'.format(status, meta)
+    elif 40 <= status < 50:
+        body = '# {} - Temporary falure\n## {}'.format(status, meta)
+    elif 50 <= status < 60:
+        body = '# {} - Permanent falure\n## {}'.format(status, meta)
+    elif 60 <= status < 70:
+        body = '# {} - Certificate required\n## {}'.format(status, meta)
+    else:
+        body = '# {} - Unknown status code\n## {}'.format(status, meta)
+    return update_content(window, body)
+
+
 def main():
     window = sg.Window('Gemini Client', browser_window_layout(), resizable=True)
     hist = History()
     hist.add(window['-URL-'].get())
     window.finalize()
-    links, overv = update_content(window, '')
+    links, overv = page_load(window)
     while True:
         event, values = window.read()
         if event == sg.WIN_CLOSED:
@@ -179,31 +204,8 @@ def main():
             elif event == '-OVERV-':
                 item = window['-OVERV-'].get_indexes()[0]
                 window['-CONTENT-'].set_vscroll_position(overv[item])
-                continue
-
-            # Make a request and handle the response
-            status, meta, body = gemini_request(window['-URL-'].get())
-            if 10 <= status < 20:
-                # Input request
-                layout = [[sg.Text(meta)], [sg.InputText()], [sg.Submit(), sg.Cancel()]]
-                event, values = sg.Window('Input Requested', layout).read(close=True)
-                query = '?' + urllib.parse.quote(values[0])
-                window['-URL-'].update(urllib.parse.urljoin(window['-URL-'].get(), query))
-                status, meta, body = gemini_request(window['-URL-'].get())
-            if 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
-                pass  # Success
-            elif 30 <= status < 40:
-                body = '# {} - Redirect\n## {}'.format(status, meta)
-            elif 40 <= status < 50:
-                body = '# {} - Temporary falure\n## {}'.format(status, meta)
-            elif 50 <= status < 60:
-                body = '# {} - Permanent falure\n## {}'.format(status, meta)
-            elif 60 <= status < 70:
-                body = '# {} - Certificate required\n## {}'.format(status, meta)
-            else:
-                body = '# {} - Unknown status code\n## {}'.format(status, meta)
-            links, overv = update_content(window, body)
-
+                continue  # No page load, only scroll existing content
+            links, overv = page_load(window)
 
 if __name__ == '__main__':
     main()
