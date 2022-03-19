@@ -96,6 +96,8 @@ class Client(object):
         self.window = sg.Window('Gemini Client', browser_window_layout(), resizable=True)
         self.links = []
         self.overview = []
+        self.history = []
+        self.history_i = -1
 
     @property
     def url(self):
@@ -148,10 +150,12 @@ class Client(object):
         self.links = [link for (text, link) in new_links]
         self.overview = [p / pos for (p, line) in new_overv]
 
-    def load_url(self, url):
+    def load_url(self, url, add_to_hist=True):
         """Do whatever is necessary to request and then display a given URL"""
 
         # TODO: only update the window url for gemini:// urls, do something different for other schemes
+        if add_to_hist:
+            self.add_history(url)
         self.window['-URL-'].update(url)
         status, meta, body = gemini_request(url)
 
@@ -185,32 +189,27 @@ class Client(object):
         item = self.window['-OVERV-'].get_indexes()[0]
         self.window['-CONTENT-'].set_vscroll_position(self.overview[item])
 
-
-class History(object):
-    def __init__(self):
-        self._hist = []
-        self._i = -1
+    def forward(self):
+        if self.history_i < len(self.history) - 1:
+            self.history_i += 1
+            self.load_url(self.history[self.history_i], add_to_hist=False)
 
     def back(self):
-        if len(self._hist) > -self._i:
-            self._i -= 1
-            return self._hist[self._i]
+        if self.history_i > 0:
+            self.history_i -= 1
+            self.load_url(self.history[self.history_i], add_to_hist=False)
 
-    def forward(self):
-        if self._i < -1:
-            self._i += 1
-            return self._hist[self._i]
-
-    def add(self, url):
-        if self._i < -1: self._hist = self._hist[:self._i+1]
-        self._i = -1
-        self._hist.append(url)
+    def add_history(self, url):
+        if 0 < self.history_i < len(self.history) - 1 and url == self.history[self.history_i]:
+            return  # Don't add duplicates to the history
+        self.history_i += 1
+        if len(self.history) > self.history_i + 1:
+            self.history = self.history[:self.history_i]  # Erase future history if we visit a new page after going back
+        self.history.append(url)
 
 
 def main():
     client = Client()
-    hist = History()
-    hist.add(homepage)
     client.window.finalize()
     client.load_url(homepage)
     while True:
@@ -219,14 +218,11 @@ def main():
             break
         else:
             if event == 'Go':
-                hist.add(values['-URL-'])
                 client.load_url(values['-URL-'])
             elif event == 'Back':
-                if url := hist.back():
-                    client.load_url(url)
+                client.back()
             elif event == 'Forward':
-                if url := hist.forward():
-                    client.load_url(url)
+                client.forward()
             elif event == 'Home':
                 client.load_url(homepage)
             elif event == '-LINKS-':
