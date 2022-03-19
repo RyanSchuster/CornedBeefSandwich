@@ -97,6 +97,10 @@ class Client(object):
         self.links = []
         self.overview = []
 
+    @property
+    def url(self):
+        return self.window['-URL-'].get()
+
     def update_content_gemtext(self, content: str):
         """Update the displayed contents given a string of gemtext"""
 
@@ -115,7 +119,7 @@ class Client(object):
                                                 append=True)
             elif line.startswith('=>'):
                 splitlink = line[2:].strip().split(maxsplit=1)
-                link = urllib.parse.urljoin(self.window['-URL-'].get(),
+                link = urllib.parse.urljoin(self.url,
                                             (splitlink[0] if len(splitlink) >= 1 else '').strip())
                 text = (splitlink[1] if len(splitlink) >= 2 else '').strip()
                 self.window['-CONTENT-'].update('[{}] => {} {}\n'.format(len(new_links), link, text),
@@ -157,7 +161,7 @@ class Client(object):
             layout = [[sg.Text(meta)], [sg.InputText()], [sg.Submit(), sg.Cancel()]]
             event, values = sg.Window('Input Requested', layout).read(close=True)
             query = '?' + urllib.parse.quote(values[0])
-            url = urllib.parse.urljoin(self.window['-URL-'].get(), query)
+            url = urllib.parse.urljoin(self.url, query)
             return self.load_url(url)
         elif 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
             pass  # Success
@@ -173,6 +177,13 @@ class Client(object):
         else:
             body = '# {} - Unknown status code\n## {}'.format(status, meta)
         return self.update_content_gemtext(body)
+
+    def goto_link(self):
+        self.load_url(self.links[self.window['-LINKS-'].get_indexes()[0]])
+
+    def goto_overview(self):
+        item = self.window['-OVERV-'].get_indexes()[0]
+        self.window['-CONTENT-'].set_vscroll_position(self.overview[item])
 
 
 class History(object):
@@ -209,24 +220,19 @@ def main():
         else:
             if event == 'Go':
                 hist.add(values['-URL-'])
-                url = values['-URL-']
+                client.load_url(values['-URL-'])
             elif event == 'Back':
-                if url := hist.back() is None:
-                    continue  # Nothing to go back to, no page load
+                if url := hist.back():
+                    client.load_url(url)
             elif event == 'Forward':
-                if url := hist.forward() is None:
-                    continue  # Nothing to go forward to, no page load
+                if url := hist.forward():
+                    client.load_url(url)
             elif event == 'Home':
-                url = homepage
+                client.load_url(homepage)
             elif event == '-LINKS-':
-                url = client.links[client.window['-LINKS-'].get_indexes()[0]]
+                client.goto_link()
             elif event == '-OVERV-':
-                item = client.window['-OVERV-'].get_indexes()[0]
-                client.window['-CONTENT-'].set_vscroll_position(client.overview[item])
-                continue  # No page load, only scroll existing content
-            else:
-                continue  # Unexpected event, ignore it
-            client.load_url(url)
+                client.goto_overview()
 
 
 if __name__ == '__main__':
