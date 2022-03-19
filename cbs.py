@@ -91,44 +91,56 @@ def browser_window_layout():
     ]
 
 
-def update_content(window, content: str):
-    is_format = True
-    window['-CONTENT-'].update('')
-    links = []
-    overview = []
-    pos = 0
-    for line in content.splitlines(keepends=True):
-        if line.startswith('```'):
-            is_format = not is_format
-            continue
-        if not is_format:
-            # FIXME: This will still word-wrap - probably nothing to be done about that
-            window['-CONTENT-'].update(line, text_color_for_value=preform_color, font_for_value=preform_font, append=True)
-        elif line.startswith('=>'):
-            splitlink = line[2:].strip().split(maxsplit=1)
-            link = urllib.parse.urljoin(window['-URL-'].get(), (splitlink[0] if len(splitlink) >= 1 else '').strip())
-            text = (splitlink[1] if len(splitlink) >= 2 else '').strip()
-            window['-CONTENT-'].update('[{}] => {} {}\n'.format(len(links), link, text), text_color_for_value=link_color, font_for_value=link_font, append=True)
-            links.append((text or link, link))
-        elif line.startswith('###'):
-            window['-CONTENT-'].update(line[4:], text_color_for_value=h3_color, font_for_value=h3_font, append=True)
-            overview.append((pos, line))
-        elif line.startswith('##'):
-            window['-CONTENT-'].update(line[3:], text_color_for_value=h2_color, font_for_value=h2_font, append=True)
-            overview.append((pos, line))
-        elif line.startswith('#'):
-            window['-CONTENT-'].update(line[2:], text_color_for_value=h1_color, font_for_value=h1_font, append=True)
-            overview.append((pos, line))
-        elif line.startswith('*'):
-            window['-CONTENT-'].update(line, text_color_for_value=list_color, font_for_value=list_font, append=True)
-        elif line.startswith('>'):
-            window['-CONTENT-'].update(line, text_color_for_value=quote_color, font_for_value=quote_font, append=True)
-        else:
-            window['-CONTENT-'].update(line, text_color_for_value=content_color, font_for_value=content_font, append=True)
-        pos += 1 + int(len(line) / 120)  # Just sorta assume that lines wrap aroundabout 120 characters
-    window['-LINKS-'].update(['{} - {}'.format(i, text) for i, (text, _) in enumerate(links)])
-    window['-OVERV-'].update([line for (p, line) in overview])
-    return [link for (text, link) in links], [p / pos for (p, line) in overview]
+class Client(object):
+    def __init__(self):
+        self.window = sg.Window('Gemini Client', browser_window_layout(), resizable=True)
+        self.links = []
+        self.overview = []
+
+    def update_content_gemtext(self, content: str):
+        is_format = True
+        self.window['-CONTENT-'].update('')
+        new_links = []
+        new_overv = []
+        pos = 0
+        for line in content.splitlines(keepends=True):
+            if line.startswith('```'):
+                is_format = not is_format
+                continue
+            if not is_format:
+                # FIXME: This will still word-wrap - probably nothing to be done about that
+                self.window['-CONTENT-'].update(line, text_color_for_value=preform_color, font_for_value=preform_font,
+                                                append=True)
+            elif line.startswith('=>'):
+                splitlink = line[2:].strip().split(maxsplit=1)
+                link = urllib.parse.urljoin(self.window['-URL-'].get(),
+                                            (splitlink[0] if len(splitlink) >= 1 else '').strip())
+                text = (splitlink[1] if len(splitlink) >= 2 else '').strip()
+                self.window['-CONTENT-'].update('[{}] => {} {}\n'.format(len(new_links), link, text),
+                                           text_color_for_value=link_color, font_for_value=link_font, append=True)
+                new_links.append((text or link, link))
+            elif line.startswith('###'):
+                self.window['-CONTENT-'].update(line[4:], text_color_for_value=h3_color, font_for_value=h3_font, append=True)
+                new_overv.append((pos, line))
+            elif line.startswith('##'):
+                self.window['-CONTENT-'].update(line[3:], text_color_for_value=h2_color, font_for_value=h2_font, append=True)
+                new_overv.append((pos, line))
+            elif line.startswith('#'):
+                self.window['-CONTENT-'].update(line[2:], text_color_for_value=h1_color, font_for_value=h1_font, append=True)
+                new_overv.append((pos, line))
+            elif line.startswith('*'):
+                self.window['-CONTENT-'].update(line, text_color_for_value=list_color, font_for_value=list_font, append=True)
+            elif line.startswith('>'):
+                self.window['-CONTENT-'].update(line, text_color_for_value=quote_color, font_for_value=quote_font,
+                                           append=True)
+            else:
+                self.window['-CONTENT-'].update(line, text_color_for_value=content_color, font_for_value=content_font,
+                                           append=True)
+            pos += 1 + int(len(line) / 120)  # Just sorta assume that lines wrap aroundabout 120 characters
+        self.window['-LINKS-'].update(['{} - {}'.format(i, text) for i, (text, _) in enumerate(new_links)])
+        self.window['-OVERV-'].update([line for (p, line) in new_overv])
+        self.links = [link for (text, link) in new_links]
+        self.overview = [p / pos for (p, line) in new_overv]
 
 
 class History(object):
@@ -152,9 +164,9 @@ class History(object):
         self._hist.append(url)
 
 
-def load_url(window, url):
-    # TODO: only update the window url for gemini:// urls, do something different for other schemas
-    window['-URL-'].update(url)
+def load_url(client, url):
+    # TODO: only update the window url for gemini:// urls, do something different for other schemes
+    client.window['-URL-'].update(url)
     status, meta, body = gemini_request(url)
 
     # TODO: examine meta field for other mime types
@@ -163,8 +175,8 @@ def load_url(window, url):
         layout = [[sg.Text(meta)], [sg.InputText()], [sg.Submit(), sg.Cancel()]]
         event, values = sg.Window('Input Requested', layout).read(close=True)
         query = '?' + urllib.parse.quote(values[0])
-        url = urllib.parse.urljoin(window['-URL-'].get(), query)
-        return load_url(window, url)
+        url = urllib.parse.urljoin(client.window['-URL-'].get(), query)
+        return load_url(client.window, url)
     elif 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
         pass  # Success
     elif 30 <= status < 40:
@@ -178,17 +190,18 @@ def load_url(window, url):
         body = '# {} - Certificate required\n## {}'.format(status, meta)
     else:
         body = '# {} - Unknown status code\n## {}'.format(status, meta)
-    return update_content(window, body)
+    return client.update_content_gemtext(body)
 
 
 def main():
-    window = sg.Window('Gemini Client', browser_window_layout(), resizable=True)
+    client = Client()
+    #window = sg.Window('Gemini Client', browser_window_layout(), resizable=True)
     hist = History()
     hist.add(homepage)
-    window.finalize()
-    links, overv = load_url(window, homepage)
+    client.window.finalize()
+    load_url(client, homepage)
     while True:
-        event, values = window.read()
+        event, values = client.window.read()
         if event == sg.WIN_CLOSED:
             break
         else:
@@ -204,14 +217,14 @@ def main():
             elif event == 'Home':
                 url = homepage
             elif event == '-LINKS-':
-                url = links[window['-LINKS-'].get_indexes()[0]]
+                url = client.links[client.window['-LINKS-'].get_indexes()[0]]
             elif event == '-OVERV-':
-                item = window['-OVERV-'].get_indexes()[0]
-                window['-CONTENT-'].set_vscroll_position(overv[item])
+                item = client.window['-OVERV-'].get_indexes()[0]
+                client.window['-CONTENT-'].set_vscroll_position(client.overview[item])
                 continue  # No page load, only scroll existing content
             else:
                 continue  # Unexpected event, ignore it
-            links, overv = load_url(window, url)
+            load_url(client, url)
 
 
 if __name__ == '__main__':
