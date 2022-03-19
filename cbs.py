@@ -152,20 +152,24 @@ class History(object):
         self._hist.append(url)
 
 
-def page_load(window):
-    # Make a request and handle the response
-    status, meta, body = gemini_request(window['-URL-'].get())
+def load_url(window, url):
+    # TODO: only update the window url for gemini:// urls, do something different for other schemas
+    window['-URL-'].update(url)
+    status, meta, body = gemini_request(url)
+
+    # TODO: examine meta field for other mime types
     if 10 <= status < 20:
         # Input request
         layout = [[sg.Text(meta)], [sg.InputText()], [sg.Submit(), sg.Cancel()]]
         event, values = sg.Window('Input Requested', layout).read(close=True)
         query = '?' + urllib.parse.quote(values[0])
-        window['-URL-'].update(urllib.parse.urljoin(window['-URL-'].get(), query))
-        status, meta, body = gemini_request(window['-URL-'].get())
-    if 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
+        url = urllib.parse.urljoin(window['-URL-'].get(), query)
+        return load_url(window, url)
+    elif 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
         pass  # Success
     elif 30 <= status < 40:
         body = '# {} - Redirect\n## {}'.format(status, meta)
+        # TODO: auto-redirect?
     elif 40 <= status < 50:
         body = '# {} - Temporary falure\n## {}'.format(status, meta)
     elif 50 <= status < 60:
@@ -180,9 +184,9 @@ def page_load(window):
 def main():
     window = sg.Window('Gemini Client', browser_window_layout(), resizable=True)
     hist = History()
-    hist.add(window['-URL-'].get())
+    hist.add(homepage)
     window.finalize()
-    links, overv = page_load(window)
+    links, overv = load_url(window, homepage)
     while True:
         event, values = window.read()
         if event == sg.WIN_CLOSED:
@@ -190,22 +194,25 @@ def main():
         else:
             if event == 'Go':
                 hist.add(values['-URL-'])
+                url = values['-URL-']
             elif event == 'Back':
-                if url := hist.back():
-                    window['-URL-'].update(url)
+                if url := hist.back() is None:
+                    continue  # Nothing to go back to, no page load
             elif event == 'Forward':
-                if url := hist.forward():
-                    window['-URL-'].update(url)
+                if url := hist.forward() is None:
+                    continue  # Nothing to go forward to, no page load
             elif event == 'Home':
-                window['-URL-'].update(homepage)
+                url = homepage
             elif event == '-LINKS-':
-                item = window['-LINKS-'].get_indexes()[0]
-                window['-URL-'].update(links[item])
+                url = links[window['-LINKS-'].get_indexes()[0]]
             elif event == '-OVERV-':
                 item = window['-OVERV-'].get_indexes()[0]
                 window['-CONTENT-'].set_vscroll_position(overv[item])
                 continue  # No page load, only scroll existing content
-            links, overv = page_load(window)
+            else:
+                continue  # Unexpected event, ignore it
+            links, overv = load_url(window, url)
+
 
 if __name__ == '__main__':
     main()
