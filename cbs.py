@@ -157,7 +157,7 @@ class Client(object):
         """Do whatever is necessary to request and then display a given URL"""
 
         parsed_url = urllib.parse.urlparse(url)
-        if parsed_url.scheme != 'gemini':
+        if parsed_url.scheme != 'gemini':  # TODO: support file:// scheme for local gemtext files?
             subprocess.run(['xdg-open', url])  # TODO: support non-linux OSes here
             return
 
@@ -223,21 +223,13 @@ def main():
     client.load_url(homepage)
     while True:
         event, values = client.window.read()
-        if event == sg.WIN_CLOSED:
-            break
-        else:
-            if event == 'Go':
-                client.load_url(values['-URL-'])
-            elif event == 'Back':
-                client.back()
-            elif event == 'Forward':
-                client.forward()
-            elif event == 'Home':
-                client.load_url(homepage)
-            elif event == '-LINKS-':
-                client.goto_link()
-            elif event == '-OVERV-':
-                client.goto_overview()
+        if event == sg.WIN_CLOSED:  break
+        elif event == 'Go':         client.load_url(values['-URL-'])
+        elif event == 'Back':       client.back()
+        elif event == 'Forward':    client.forward()
+        elif event == 'Home':       client.load_url(homepage)
+        elif event == '-LINKS-':    client.goto_link()
+        elif event == '-OVERV-':    client.goto_overview()
 
 
 if __name__ == '__main__':
