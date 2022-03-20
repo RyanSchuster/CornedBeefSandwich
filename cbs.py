@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import socket, ssl, urllib
+import socket, ssl, urllib, subprocess
 import PySimpleGUI as sg
 
 urllib.parse.uses_relative.append('gemini')
@@ -156,7 +156,11 @@ class Client(object):
     def load_url(self, url, add_to_hist=True):
         """Do whatever is necessary to request and then display a given URL"""
 
-        # TODO: only update the window url for gemini:// urls, do something different for other schemes
+        parsed_url = urllib.parse.urlparse(url)
+        if parsed_url.scheme != 'gemini':
+            subprocess.run(['xdg-open', url])  # TODO: support non-linux OSes here
+            return
+
         if add_to_hist:
             self.add_history(url)
         self.window['-URL-'].update(url)
@@ -169,7 +173,8 @@ class Client(object):
             event, values = sg.Window('Input Requested', layout).read(close=True)
             query = '?' + urllib.parse.quote(values[0])
             url = urllib.parse.urljoin(self.url, query)
-            return self.load_url(url)
+            self.load_url(url)
+            return
         elif 20 <= status < 30:
             pass  # Success
         elif 30 <= status < 40:
@@ -184,7 +189,7 @@ class Client(object):
             body = '# {} - Certificate required\n## {}'.format(status, meta)
         else:
             body = '# {} - Unknown status code\n## {}'.format(status, meta)
-        return self.update_content_gemtext(body)
+        self.update_content_gemtext(body)
 
     def goto_link(self):
         self.load_url(self.links[self.window['-LINKS-'].get_indexes()[0]])
