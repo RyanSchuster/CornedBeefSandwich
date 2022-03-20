@@ -93,7 +93,7 @@ def browser_window_layout():
 
 class Client(object):
     def __init__(self):
-        self.window = sg.Window('Gemini Client', browser_window_layout(), resizable=True)
+        self.window = sg.Window('Corned Beef Sandwich Gemini Client', browser_window_layout(), resizable=True)
         self.links = []
         self.overview = []
         self.history = []
@@ -108,8 +108,8 @@ class Client(object):
 
         is_format = True
         self.window['-CONTENT-'].update('')
-        new_links = []
-        new_overv = []
+        linkbox_text, self.links = [], []
+        overbox_text, self.overview = [], []
         pos = 0
         for line in content.splitlines(keepends=True):
             if line.startswith('```'):
@@ -124,18 +124,22 @@ class Client(object):
                 link = urllib.parse.urljoin(self.url,
                                             (splitlink[0] if len(splitlink) >= 1 else '').strip())
                 text = (splitlink[1] if len(splitlink) >= 2 else '').strip()
-                self.window['-CONTENT-'].update('[{}] => {} {}\n'.format(len(new_links), link, text),
+                self.window['-CONTENT-'].update('[{}] => {} {}\n'.format(len(self.links), link, text),
                                            text_color_for_value=link_color, font_for_value=link_font, append=True)
-                new_links.append((text or link, link))
+                self.links.append(link)
+                linkbox_text.append(text)
             elif line.startswith('###'):
                 self.window['-CONTENT-'].update(line[4:], text_color_for_value=h3_color, font_for_value=h3_font, append=True)
-                new_overv.append((pos, line))
+                overbox_text.append(line)
+                self.overview.append(pos)
             elif line.startswith('##'):
                 self.window['-CONTENT-'].update(line[3:], text_color_for_value=h2_color, font_for_value=h2_font, append=True)
-                new_overv.append((pos, line))
+                overbox_text.append(line)
+                self.overview.append(pos)
             elif line.startswith('#'):
                 self.window['-CONTENT-'].update(line[2:], text_color_for_value=h1_color, font_for_value=h1_font, append=True)
-                new_overv.append((pos, line))
+                overbox_text.append(line)
+                self.overview.append(pos)
             elif line.startswith('*'):
                 self.window['-CONTENT-'].update(line, text_color_for_value=list_color, font_for_value=list_font, append=True)
             elif line.startswith('>'):
@@ -145,10 +149,9 @@ class Client(object):
                 self.window['-CONTENT-'].update(line, text_color_for_value=content_color, font_for_value=content_font,
                                            append=True)
             pos += 1 + int(len(line) / 120)  # Just sorta assume that lines wrap aroundabout 120 characters
-        self.window['-LINKS-'].update(['{} - {}'.format(i, text) for i, (text, _) in enumerate(new_links)])
-        self.window['-OVERV-'].update([line for (p, line) in new_overv])
-        self.links = [link for (text, link) in new_links]
-        self.overview = [p / pos for (p, line) in new_overv]
+        self.window['-LINKS-'].update(['{} - {}'.format(i, text) for i, text in enumerate(linkbox_text)])
+        self.window['-OVERV-'].update(overbox_text)
+        self.overview = [p / pos for p in self.overview]
 
     def load_url(self, url, add_to_hist=True):
         """Do whatever is necessary to request and then display a given URL"""
@@ -167,10 +170,11 @@ class Client(object):
             query = '?' + urllib.parse.quote(values[0])
             url = urllib.parse.urljoin(self.url, query)
             return self.load_url(url)
-        elif 20 <= status < 30:  # if instead of elif to allow processing of new request made with input
+        elif 20 <= status < 30:
             pass  # Success
         elif 30 <= status < 40:
-            body = '# {} - Redirect\n## {}'.format(status, meta)
+            redirect = urllib.parse.urljoin(self.url, meta)
+            body = '# {} - Redirect\n=> {}'.format(status, meta)
             # TODO: auto-redirect?
         elif 40 <= status < 50:
             body = '# {} - Temporary falure\n## {}'.format(status, meta)
